@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#1a1a1a">
+    <title>Film Camera</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            min-height: 100vh;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            max-width: 100vw;
+            overflow: hidden;
+        }
+
+        .viewfinder {
+            flex: 1;
+            position: relative;
+            background: #000;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #videoElement {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        #canvasElement {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        #captureCanvas {
+            display: none;
+        }
+
+        .grain-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            opacity: 0.15;
+            mix-blend-mode: overlay;
+        }
+
+        .vignette-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            background: radial-gradient(ellipse at center, transparent 0%, transparent 50%, rgba(0,0,0,0.4) 100%);
+        }
+
+        .flash-effect {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.1s;
+        }
+
+        .flash-effect.active {
+            opacity: 1;
+        }
+
+        .header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, transparent 100%);
+        }
+
+        .film-name {
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #fff;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+        }
+
+        .header-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .film-strip {
+            background: #1a1a1a;
+            padding: 12px 0;
+            border-top: 1px solid #333;
+        }
+
+        .film-strip-scroll {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding: 0 16px;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .film-strip-scroll::-webkit-scrollbar {
+            display: none;
+        }
+
+        .film-option {
+            flex-shrink: 0;
+            width: 70px;
+            height: 70px;
+            border-radius: 8px;
+            border: 3px solid transparent;
+            cursor: pointer;
+            overflow: hidden;
+            transition: all 0.2s;
+        }
+
+        .film-option.active {
+            border-color: #fff;
+            transform: scale(1.05);
+        }
+
+        .film-option-preview {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 600;
+            text-align: center;
+            padding: 4px;
+            color: #fff;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+
+        .controls {
+            background: #1a1a1a;
+            padding: 20px 16px 30px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+        }
+
+        .control-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: none;
+            background: #333;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .shutter-btn {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            border: 4px solid white;
+            background: transparent;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .shutter-btn::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: white;
+            transition: transform 0.1s;
+        }
+
+        .shutter-btn:active::after {
+            transform: translate(-50%, -50%) scale(0.9);
+        }
+
+        .thumbnail-preview {
+            width: 50px;
+            height: 50px;
+            border-radius: 8px;
+            border: 2px solid #444;
+            overflow: hidden;
+            background: #333;
+        }
+
+        .thumbnail-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .gallery-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.95);
+            z-index: 100;
+            display: none;
+            flex-direction: column;
+        }
+
+        .gallery-modal.active {
+            display: flex;
+        }
+
+        .gallery-header {
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .gallery-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .gallery-close {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: none;
+            background: #333;
+            color: white;
+            font-size: 28px;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .gallery-content {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+
+        .gallery-content img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            border-radius: 4px;
+        }
+
+        .gallery-actions {
+            padding: 16px;
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+        }
+
+        .gallery-btn {
+            padding: 14px 28px;
+            border-radius: 8px;
+            border: none;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .gallery-btn.primary {
+            background: #fff;
+            color: #000;
+        }
+
+        .gallery-btn.secondary {
+            background: #333;
+            color: #fff;
+        }
+
+        .permission-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #1a1a1a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 32px;
+            text-align: center;
+            z-index: 200;
+        }
+
+        .permission-screen.hidden {
+            display: none;
+        }
+
+        .permission-icon {
+            font-size: 64px;
+            margin-bottom: 24px;
+        }
+
+        .permission-title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .permission-text {
+            font-size: 16px;
+            color: #888;
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+
+        .permission-btn {
+            padding: 16px 32px;
+            border-radius: 12px;
+            border: none;
+            background: #fff;
+            color: #000;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: 12px;
+            width: 100%;
+            max-width: 280px;
+        }
+
+        .permission-btn.secondary {
+            background: #333;
+            color: #fff;
+        }
+
+        .permission-error {
+            margin-top: 20px;
+            padding: 16px;
+            background: rgba(255,100,100,0.15);
+            border: 1px solid rgba(255,100,100,0.3);
+            border-radius: 12px;
+            font-size: 13px;
+            color: #ff9999;
+            max-width: 300px;
+            display: none;
+            text-align: left;
+            line-height: 1.5;
+        }
+
+        .permission-error.show {
+            display: block;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 120px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: rgba(255,255,255,0.95);
+            color: #000;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 500;
+            opacity: 0;
+            transition: all 0.3s;
+            z-index: 150;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="permission-screen" id="permissionScreen">
+        <div class="permission-icon">📷</div>
+        <h1 class="permission-title">Film Camera</h1>
+        <p class="permission-text">Apply vintage film filters to your photos</p>
+        <button class="permission-btn" id="requestPermission">Enable Camera</button>
+        <button class="permission-btn secondary" id="uploadPhotoBtn">Upload Photo Instead</button>
+        <input type="file" id="fileInput" accept="image/*" style="display: none;">
+        <div class="permission-error" id="permissionError">
+            <strong>Camera not available</strong><br><br>
+            Camera requires HTTPS. Use "Upload Photo Instead" to test the filters now!
+        </div>
+    </div>
+
+    <div class="app-container">
+        <div class="viewfinder">
+            <video id="videoElement" autoplay playsinline muted></video>
+            <canvas id="canvasElement"></canvas>
+            <canvas id="captureCanvas"></canvas>
+            <canvas id="grainCanvas" class="grain-overlay"></canvas>
+            <div class="vignette-overlay" id="vignetteOverlay"></div>
+            <div class="flash-effect" id="flashEffect"></div>
+            
+            <div class="header">
+                <button class="header-btn" id="flipCamera">🔄</button>
+                <div class="film-name" id="filmName">KODAK PORTRA 400</div>
+                <button class="header-btn" id="newPhotoBtn">📁</button>
+            </div>
+        </div>
+
+        <div class="film-strip">
+            <div class="film-strip-scroll" id="filmStrip"></div>
+        </div>
+
+        <div class="controls">
+            <div class="thumbnail-preview" id="thumbnailPreview">
+                <img id="lastPhoto" src="" alt="">
+            </div>
+            <button class="shutter-btn" id="shutterBtn"></button>
+            <button class="control-btn" id="galleryBtn">🖼️</button>
+        </div>
+    </div>
+
+    <div class="gallery-modal" id="galleryModal">
+        <div class="gallery-header">
+            <span class="gallery-title">Photo</span>
+            <button class="gallery-close" id="galleryClose">×</button>
+        </div>
+        <div class="gallery-content">
+            <img id="galleryImage" src="" alt="">
+        </div>
+        <div class="gallery-actions">
+            <button class="gallery-btn secondary" id="deletePhoto">Delete</button>
+            <button class="gallery-btn primary" id="savePhoto">Save</button>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            
+            var filmPresets = {
+                none: {
+                    name: 'No Filter',
+                    color: '#666',
+                    saturation: 1, contrast: 1, brightness: 1, temperature: 0, tint: 0,
+                    grain: 0, vignette: 0, blacks: 0,
+                    shadows: { r: 0, g: 0, b: 0 },
+                    midtones: { r: 0, g: 0, b: 0 },
+                    highlights: { r: 0, g: 0, b: 0 },
+                    fade: 0
+                },
+                portra400: {
+                    name: 'Kodak Portra 400',
+                    color: '#e8c4a0',
+                    saturation: 0.85, contrast: 0.95, brightness: 1.02, temperature: 8, tint: 2,
+                    grain: 0.12, vignette: 0.2, blacks: 5,
+                    shadows: { r: 5, g: 2, b: -3 },
+                    midtones: { r: 3, g: 5, b: -2 },
+                    highlights: { r: 8, g: 4, b: -5 },
+                    fade: 0.05
+                },
+                ektar100: {
+                    name: 'Kodak Ektar 100',
+                    color: '#ff6b4a',
+                    saturation: 1.25, contrast: 1.15, brightness: 1, temperature: 5, tint: -2,
+                    grain: 0.08, vignette: 0.15, blacks: 8,
+                    shadows: { r: 0, g: -3, b: 5 },
+                    midtones: { r: 5, g: 0, b: -5 },
+                    highlights: { r: 10, g: 2, b: -8 },
+                    fade: 0
+                },
+                kodachrome: {
+                    name: 'Kodachrome 64',
+                    color: '#ff9933',
+                    saturation: 1.1, contrast: 1.2, brightness: 0.98, temperature: 12, tint: 5,
+                    grain: 0.1, vignette: 0.25, blacks: 12,
+                    shadows: { r: 8, g: 0, b: -10 },
+                    midtones: { r: 10, g: 5, b: -8 },
+                    highlights: { r: 15, g: 8, b: -5 },
+                    fade: 0.02
+                },
+                velvia: {
+                    name: 'Fuji Velvia 50',
+                    color: '#00cc66',
+                    saturation: 1.4, contrast: 1.25, brightness: 0.98, temperature: -5, tint: 5,
+                    grain: 0.06, vignette: 0.2, blacks: 15,
+                    shadows: { r: -5, g: 5, b: 10 },
+                    midtones: { r: 0, g: 8, b: 5 },
+                    highlights: { r: 5, g: 0, b: 10 },
+                    fade: 0
+                },
+                polaroid: {
+                    name: 'Polaroid 600',
+                    color: '#ffeecc',
+                    saturation: 0.8, contrast: 0.85, brightness: 1.08, temperature: 15, tint: -5,
+                    grain: 0.15, vignette: 0.35, blacks: -10,
+                    shadows: { r: 10, g: 5, b: -15 },
+                    midtones: { r: 5, g: 8, b: -10 },
+                    highlights: { r: 15, g: 12, b: 5 },
+                    fade: 0.15
+                },
+                super8: {
+                    name: 'Super 8',
+                    color: '#cc8844',
+                    saturation: 0.75, contrast: 1.1, brightness: 0.95, temperature: 20, tint: 10,
+                    grain: 0.25, vignette: 0.4, blacks: 5,
+                    shadows: { r: 15, g: 5, b: -20 },
+                    midtones: { r: 12, g: 8, b: -15 },
+                    highlights: { r: 20, g: 15, b: 0 },
+                    fade: 0.1
+                },
+                hp5: {
+                    name: 'Ilford HP5 B&W',
+                    color: '#888',
+                    saturation: 0, contrast: 1.15, brightness: 1, temperature: 0, tint: 0,
+                    grain: 0.18, vignette: 0.25, blacks: 10,
+                    shadows: { r: 0, g: 0, b: 0 },
+                    midtones: { r: 0, g: 0, b: 0 },
+                    highlights: { r: 0, g: 0, b: 0 },
+                    fade: 0.03
+                },
+                cinestill: {
+                    name: 'Cinestill 800T',
+                    color: '#4488cc',
+                    saturation: 1.05, contrast: 1.1, brightness: 0.98, temperature: -15, tint: -8,
+                    grain: 0.14, vignette: 0.2, blacks: 8,
+                    shadows: { r: -10, g: 0, b: 15 },
+                    midtones: { r: -5, g: 5, b: 12 },
+                    highlights: { r: 5, g: 10, b: 20 },
+                    fade: 0.03,
+                    halation: true
+                },
+                gold200: {
+                    name: 'Kodak Gold 200',
+                    color: '#ffcc00',
+                    saturation: 1.15, contrast: 1.05, brightness: 1.02, temperature: 10, tint: 0,
+                    grain: 0.12, vignette: 0.2, blacks: 5,
+                    shadows: { r: 8, g: 5, b: -10 },
+                    midtones: { r: 10, g: 8, b: -5 },
+                    highlights: { r: 12, g: 10, b: 0 },
+                    fade: 0.02
+                }
+            };
+
+            var currentFilm = 'portra400';
+            var facingMode = 'environment';
+            var stream = null;
+            var photos = [];
+            var editMode = false;
+            var editImage = null;
+            var animationId = null;
+
+            var video = document.getElementById('videoElement');
+            var canvas = document.getElementById('canvasElement');
+            var captureCanvas = document.getElementById('captureCanvas');
+            var grainCanvas = document.getElementById('grainCanvas');
+            var ctx = canvas.getContext('2d', { willReadFrequently: true });
+            var captureCtx = captureCanvas.getContext('2d');
+            var grainCtx = grainCanvas.getContext('2d');
+            var filmStrip = document.getElementById('filmStrip');
+            var filmNameEl = document.getElementById('filmName');
+            var vignetteOverlay = document.getElementById('vignetteOverlay');
+            var flashEffect = document.getElementById('flashEffect');
+            var permissionScreen = document.getElementById('permissionScreen');
+            var permissionError = document.getElementById('permissionError');
+            var toastEl = document.getElementById('toast');
+            var galleryModal = document.getElementById('galleryModal');
+            var galleryImage = document.getElementById('galleryImage');
+            var lastPhotoImg = document.getElementById('lastPhoto');
+            var fileInput = document.getElementById('fileInput');
+
+            function initFilmStrip() {
+                filmStrip.innerHTML = '';
+                var keys = Object.keys(filmPresets);
+                for (var i = 0; i < keys.length; i++) {
+                    var key = keys[i];
+                    var preset = filmPresets[key];
+                    var option = document.createElement('div');
+                    option.className = 'film-option' + (key === currentFilm ? ' active' : '');
+                    option.setAttribute('data-film', key);
+                    var shortName = preset.name.split(' ');
+                    option.innerHTML = '<div class="film-option-preview" style="background:' + preset.color + '"><span>' + shortName[shortName.length - 1] + '</span></div>';
+                    (function(k) {
+                        option.onclick = function() { selectFilm(k); };
+                    })(key);
+                    filmStrip.appendChild(option);
+                }
+            }
+
+            function selectFilm(filmKey) {
+                currentFilm = filmKey;
+                var preset = filmPresets[filmKey];
+                
+                var options = document.querySelectorAll('.film-option');
+                for (var i = 0; i < options.length; i++) {
+                    if (options[i].getAttribute('data-film') === filmKey) {
+                        options[i].classList.add('active');
+                    } else {
+                        options[i].classList.remove('active');
+                    }
+                }
+                filmNameEl.textContent = preset.name.toUpperCase();
+                
+                vignetteOverlay.style.background = 'radial-gradient(ellipse at center, transparent 0%, transparent ' + 
+                    (50 - preset.vignette * 30) + '%, rgba(0,0,0,' + preset.vignette + ') 100%)';
+                
+                grainCanvas.style.opacity = preset.grain;
+                
+                if (editMode && editImage) {
+                    renderEditImage();
+                }
+            }
+
+            function applyFilter(imageData, preset) {
+                var data = imageData.data;
+                for (var i = 0; i < data.length; i += 4) {
+                    var r = data[i];
+                    var g = data[i + 1];
+                    var b = data[i + 2];
+                    
+                    var lum = (r * 0.299 + g * 0.587 + b * 0.114) / 255;
+                    
+                    var shadowW = Math.max(0, 1 - lum * 3);
+                    var midW = 1 - Math.abs(lum - 0.5) * 2;
+                    var highW = Math.max(0, (lum - 0.5) * 2);
+                    
+                    r += preset.shadows.r * shadowW + preset.midtones.r * midW + preset.highlights.r * highW;
+                    g += preset.shadows.g * shadowW + preset.midtones.g * midW + preset.highlights.g * highW;
+                    b += preset.shadows.b * shadowW + preset.midtones.b * midW + preset.highlights.b * highW;
+                    
+                    r += preset.temperature * 0.5;
+                    b -= preset.temperature * 0.5;
+                    g += preset.tint * 0.3;
+                    
+                    var gray = 0.299 * r + 0.587 * g + 0.114 * b;
+                    r = gray + (r - gray) * preset.saturation;
+                    g = gray + (g - gray) * preset.saturation;
+                    b = gray + (b - gray) * preset.saturation;
+                    
+                    r = ((r / 255 - 0.5) * preset.contrast + 0.5) * 255;
+                    g = ((g / 255 - 0.5) * preset.contrast + 0.5) * 255;
+                    b = ((b / 255 - 0.5) * preset.contrast + 0.5) * 255;
+                    
+                    r *= preset.brightness;
+                    g *= preset.brightness;
+                    b *= preset.brightness;
+                    
+                    if (preset.fade > 0) {
+                        var fadeAmt = preset.fade * 40;
+                        r = r + fadeAmt - (r / 255) * fadeAmt * 0.5;
+                        g = g + fadeAmt - (g / 255) * fadeAmt * 0.5;
+                        b = b + fadeAmt - (b / 255) * fadeAmt * 0.5;
+                    }
+                    
+                    if (preset.halation && lum > 0.85) {
+                        var h = (lum - 0.85) * 6;
+                        r += h * 30;
+                        g += h * 10;
+                    }
+                    
+                    data[i] = Math.max(0, Math.min(255, r));
+                    data[i + 1] = Math.max(0, Math.min(255, g));
+                    data[i + 2] = Math.max(0, Math.min(255, b));
+                }
+                return imageData;
+            }
+
+            function generateGrain() {
+                var w = grainCanvas.width || 200;
+                var h = grainCanvas.height || 200;
+                if (grainCanvas.width !== w) grainCanvas.width = w;
+                if (grainCanvas.height !== h) grainCanvas.height = h;
+                
+                var imageData = grainCtx.createImageData(w, h);
+                var data = imageData.data;
+                for (var i = 0; i < data.length; i += 4) {
+                    var n = Math.random() * 255;
+                    data[i] = data[i + 1] = data[i + 2] = n;
+                    data[i + 3] = 255;
+                }
+                grainCtx.putImageData(imageData, 0, 0);
+            }
+
+            function renderEditImage() {
+                if (!editImage) return;
+                ctx.drawImage(editImage, 0, 0, canvas.width, canvas.height);
+                var preset = filmPresets[currentFilm];
+                var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                applyFilter(imageData, preset);
+                ctx.putImageData(imageData, 0, 0);
+            }
+
+            function processFrame() {
+                if (editMode) return;
+                
+                if (video.readyState >= video.HAVE_CURRENT_DATA) {
+                    if (canvas.width !== video.videoWidth) {
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        grainCanvas.width = Math.floor(video.videoWidth / 4);
+                        grainCanvas.height = Math.floor(video.videoHeight / 4);
+                    }
+                    
+                    ctx.drawImage(video, 0, 0);
+                    var preset = filmPresets[currentFilm];
+                    var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    applyFilter(imageData, preset);
+                    ctx.putImageData(imageData, 0, 0);
+                    generateGrain();
+                }
+                animationId = requestAnimationFrame(processFrame);
+            }
+
+            function startCamera() {
+                if (stream) {
+                    var tracks = stream.getTracks();
+                    for (var i = 0; i < tracks.length; i++) {
+                        tracks[i].stop();
+                    }
+                }
+                
+                navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+                    audio: false
+                }).then(function(s) {
+                    stream = s;
+                    video.srcObject = stream;
+                    video.play();
+                    editMode = false;
+                    video.style.display = 'block';
+                    permissionScreen.classList.add('hidden');
+                    processFrame();
+                }).catch(function(err) {
+                    console.error('Camera error:', err);
+                    permissionError.classList.add('show');
+                    showToast('Camera not available');
+                });
+            }
+
+            function handleUpload(e) {
+                var file = e.target.files && e.target.files[0];
+                if (!file) return;
+                
+                var reader = new FileReader();
+                reader.onload = function(ev) {
+                    editImage = new Image();
+                    editImage.onload = function() {
+                        editMode = true;
+                        video.style.display = 'none';
+                        if (animationId) cancelAnimationFrame(animationId);
+                        
+                        canvas.width = editImage.width;
+                        canvas.height = editImage.height;
+                        grainCanvas.width = Math.floor(editImage.width / 4);
+                        grainCanvas.height = Math.floor(editImage.height / 4);
+                        
+                        permissionScreen.classList.add('hidden');
+                        renderEditImage();
+                        generateGrain();
+                        showToast('Photo loaded');
+                    };
+                    editImage.src = ev.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+
+            function capturePhoto() {
+                flashEffect.classList.add('active');
+                setTimeout(function() { flashEffect.classList.remove('active'); }, 150);
+                
+                captureCanvas.width = canvas.width;
+                captureCanvas.height = canvas.height;
+                captureCtx.drawImage(canvas, 0, 0);
+                
+                var preset = filmPresets[currentFilm];
+                
+                if (preset.grain > 0) {
+                    captureCtx.globalAlpha = preset.grain * 0.8;
+                    captureCtx.globalCompositeOperation = 'overlay';
+                    var gd = captureCtx.createImageData(captureCanvas.width, captureCanvas.height);
+                    for (var i = 0; i < gd.data.length; i += 4) {
+                        var n = Math.random() * 255;
+                        gd.data[i] = gd.data[i + 1] = gd.data[i + 2] = n;
+                        gd.data[i + 3] = 255;
+                    }
+                    var tc = document.createElement('canvas');
+                    tc.width = captureCanvas.width;
+                    tc.height = captureCanvas.height;
+                    tc.getContext('2d').putImageData(gd, 0, 0);
+                    captureCtx.drawImage(tc, 0, 0);
+                    captureCtx.globalAlpha = 1;
+                    captureCtx.globalCompositeOperation = 'source-over';
+                }
+                
+                if (preset.vignette > 0) {
+                    var grad = captureCtx.createRadialGradient(
+                        captureCanvas.width / 2, captureCanvas.height / 2, 0,
+                        captureCanvas.width / 2, captureCanvas.height / 2, 
+                        Math.max(captureCanvas.width, captureCanvas.height) / 1.5
+                    );
+                    grad.addColorStop(0, 'transparent');
+                    grad.addColorStop(0.5, 'transparent');
+                    grad.addColorStop(1, 'rgba(0,0,0,' + preset.vignette + ')');
+                    captureCtx.fillStyle = grad;
+                    captureCtx.fillRect(0, 0, captureCanvas.width, captureCanvas.height);
+                }
+                
+                var dataUrl = captureCanvas.toDataURL('image/jpeg', 0.92);
+                photos.unshift({ data: dataUrl, film: currentFilm, time: Date.now() });
+                lastPhotoImg.src = dataUrl;
+                showToast('Photo saved');
+            }
+
+            function showToast(msg) {
+                toastEl.textContent = msg;
+                toastEl.classList.add('show');
+                setTimeout(function() { toastEl.classList.remove('show'); }, 2000);
+            }
+
+            function saveToDevice() {
+                if (photos.length === 0) return;
+                var link = document.createElement('a');
+                link.download = 'film-photo-' + Date.now() + '.jpg';
+                link.href = photos[0].data;
+                link.click();
+                showToast('Saved to device');
+                galleryModal.classList.remove('active');
+            }
+
+            function deletePhoto() {
+                photos.shift();
+                if (photos.length > 0) {
+                    lastPhotoImg.src = photos[0].data;
+                    galleryImage.src = photos[0].data;
+                } else {
+                    lastPhotoImg.src = '';
+                    galleryModal.classList.remove('active');
+                }
+                showToast('Deleted');
+            }
+
+            document.getElementById('requestPermission').onclick = startCamera;
+            document.getElementById('uploadPhotoBtn').onclick = function() { fileInput.click(); };
+            document.getElementById('newPhotoBtn').onclick = function() { fileInput.click(); };
+            fileInput.onchange = handleUpload;
+            document.getElementById('shutterBtn').onclick = capturePhoto;
+            document.getElementById('flipCamera').onclick = function() {
+                if (editMode) {
+                    fileInput.click();
+                } else {
+                    facingMode = facingMode === 'environment' ? 'user' : 'environment';
+                    startCamera();
+                }
+            };
+            document.getElementById('thumbnailPreview').onclick = function() {
+                if (photos.length === 0) { showToast('No photos yet'); return; }
+                galleryImage.src = photos[0].data;
+                galleryModal.classList.add('active');
+            };
+            document.getElementById('galleryBtn').onclick = function() {
+                if (photos.length === 0) { showToast('No photos yet'); return; }
+                galleryImage.src = photos[0].data;
+                galleryModal.classList.add('active');
+            };
+            document.getElementById('galleryClose').onclick = function() {
+                galleryModal.classList.remove('active');
+            };
+            document.getElementById('savePhoto').onclick = saveToDevice;
+            document.getElementById('deletePhoto').onclick = deletePhoto;
+
+            initFilmStrip();
+            selectFilm(currentFilm);
+            grainCanvas.width = 200;
+            grainCanvas.height = 200;
+            generateGrain();
+
+        });
+    </script>
+</body>
+</html>
